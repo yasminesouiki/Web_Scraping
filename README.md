@@ -1,7 +1,7 @@
 # GoAfrica Collector : moteur de recherche et de collecte d'entreprises africaines (POC)
 
 Application web qui permet de rechercher des entreprises africaines par **pays**, **ville** et **secteur d'activité ou nom**.
-Les données sont **collectées automatiquement** sur un annuaire en ligne (Go Africa Online), **enregistrées** dans une base MySQL sans doublons et **exportables en CSV**.
+Les données sont **collectées automatiquement** sur un annuaire en ligne, **enregistrées** dans une base MySQL sans doublons et **exportables en CSV**.
 
 ---
 
@@ -26,7 +26,7 @@ Interface React  ──►  API Node/Express  ──►  MySQL
    (frontend)            (backend)            (companies, searches, search_results)
                              │
                              ▼
-                    Module de collecte  ──►  Site source (goafricaonline.com)
+                    Module de collecte  ──►  Site source
                     (backend/src/collector)
 ```
 
@@ -107,27 +107,27 @@ goafrica-collector/
 
 ### Prérequis
 
-- **Node.js 18 ou plus** (`node -v`)
-- **MySQL 8** (ou MariaDB), par exemple via XAMPP, WAMP, MAMP ou MySQL Installer
+- Node.js 22
+- MySQL : WAMP
 
 ### Étapes
 
-```bash
+
 # 1. Backend
 cd backend
 npm install
 cp .env.example .env        # sous Windows : copy .env.example .env
 # → ouvrir .env et renseigner DB_USER / DB_PASSWORD
-npm run db:init             # crée la base goafrica_poc et les tables
-npm run dev                 # API sur http://localhost:4000/api
+npm run db:init             # crée la base info_collect et les tables
+npm run dev
 
-# 2. Frontend (dans un 2e terminal)
+# 2. Frontend
 cd frontend
 npm install
-npm run dev                 # interface sur http://localhost:5173
-```
+npm run dev
 
-Vérification : http://localhost:4000/api/health doit afficher `{"status":"ok","database":"connected"}`.
+
+On fait la vérification : http://localhost:4000/api/health * Affichage `{"status":"ok","database":"connected"}`.
 
 ---
 
@@ -141,14 +141,6 @@ Vérification : http://localhost:4000/api/health doit afficher `{"status":"ok","
 4. Cliquer sur **Exporter en CSV** pour télécharger les résultats.
 5. Relancer la même recherche : les résultats viennent instantanément de la base. Cocher « Forcer une nouvelle collecte » pour recollecter.
 
-### Collecteur seul (ligne de commande)
-
-```bash
-cd backend
-npm run collect -- --country sn --keyword communication --city dakar --max 5
-npm run collect -- --country ci --keyword banque --save            # enregistre en base
-npm run collect -- --country ma --keyword hotel --out hotels.json  # écrit un fichier JSON
-```
 
 ### API
 
@@ -162,14 +154,6 @@ npm run collect -- --country ma --keyword hotel --out hotels.json  # écrit un f
 | GET | `/api/companies?country=sn&city=dakar&q=info&page=1` | Toutes les entreprises en base |
 | GET | `/api/export.csv?searchId=12` | Export CSV d'une recherche (ou de toute la base avec `country`, `city`, `q`) |
 
-### Tests
-
-```bash
-cd backend
-npm test
-```
-
----
 
 ## 6. Gestion des doublons et des erreurs
 
@@ -202,21 +186,12 @@ npm test
 
 ---
 
-## 8. Limites connues et améliorations possibles
+## 8. Limites connues
 
-**Limites**
 - L'email est rarement affiché publiquement sur le site source : le champ est souvent vide.
 - Le filtre par ville s'appuie sur l'URL et l'adresse des fiches, et peut donc manquer quelques entreprises.
 - La recherche par nom porte sur les données déjà collectées. Pour chercher un nom directement sur le site, renseigner `SEARCH_URL_TEMPLATE` dans `.env` après avoir identifié l'URL de recherche du site (F12 → onglet Réseau).
 
-**Améliorations possibles**
-- Ajouter d'autres sources (annuaires nationaux, registres de commerce) : un collecteur par source, même format de sortie.
-- Utiliser une IA pour associer un mot-clé libre au bon secteur, ou pour trouver l'email sur le site web de l'entreprise.
-- Lancer les collectes en arrière-plan (file d'attente) et afficher la progression en temps réel.
-- Planifier une mise à jour automatique des données.
-- Ajouter une authentification et une pagination des résultats.
-
----
 
 ## 9. Dépannage
 
