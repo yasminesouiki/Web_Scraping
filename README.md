@@ -115,7 +115,9 @@ goafrica-collector/
 
 # 1. Backend
 cd backend
+
 npm install
+
 cp .env.example .env        # sous Windows : copy .env.example .env
 # → ouvrir .env et renseigner DB_USER / DB_PASSWORD
 npm run db:init             # crée la base info_collect et les tables
@@ -124,7 +126,9 @@ npm run dev
 
 # 2. Frontend
 cd frontend
+
 npm install
+
 npm run dev
 
 
