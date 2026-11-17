@@ -18,23 +18,7 @@ const { fetchHtml } = require('./http');
 const { parseCategories, parseListing, parseCompanyPage } = require('./parser');
 const { matchCategories } = require('./matcher');
 const { slugHasCity } = require('./extract');
-
-const categoriesCache = new Map(); // code pays -> secteurs (gardés en mémoire)
-
-async function getCategories(countryCode, fetcher = fetchHtml) {
-  if (categoriesCache.has(countryCode)) return categoriesCache.get(countryCode);
-  const html = await fetcher(`${config.collector.baseUrl}/${countryCode}/annuaire`);
-  const categories = parseCategories(html, countryCode, config.collector.baseUrl);
-  if (!categories.length) {
-    throw new CollectorError(
-      "Aucun secteur trouvé sur la page annuaire : la structure du site a peut-être changé (voir collector/parser.js).",
-      502,
-      'PARSE_ERROR'
-    );
-  }
-  categoriesCache.set(countryCode, categories);
-  return categories;
-}
+const { getCategoryIndex, rememberCategories, isIndexComplete } = require('./categoryIndex');
 
 const TIME_UP = 'TIME_UP';
 
@@ -85,24 +69,43 @@ async function collect({ country, keyword, city = '', maxPages, maxCompanies, ma
   const countryNames = [c.name, c.nameEn];
   const secondsLimit = maxSeconds || config.collector.maxCollectSeconds;
   const subcategoriesLimit = maxSubcategories || config.collector.maxSubcategories;
-  const deadline = Date.now() + secondsLimit * 1000;
-  const timeLeft = () => Date.now() < deadline;
   let partial = false;
 
-  // 1. Secteurs correspondant au mot-clé
-  log(onProgress, `Recherche des secteurs pour « ${keyword} » (${c.name})...`);
-  const fetchPage = (url) => fetchBefore(url, deadline);
+  // 1. Catégories correspondant au mot-clé (index complet des catégories du site)
+  log(onProgress, `Recherche des catégories pour « ${keyword} » (${c.name})...`);
   let categories;
   try {
-    categories = await getCategories(c.code, fetchPage);
+    // La 1re fois pour un pays, l'index est construit (≈ 20 s, une seule fois, puis gardé sur disque)
+    categories = await getCategoryIndex(c.code, {
+      budgetMs: config.collector.indexBuildSeconds * 1000,
+      onProgress,
+    });
   } catch (err) {
-    if (err.code !== TIME_UP) throw err;
-    return { country: c, partial: true, categories: [], companies: [], errors: [], message: 'Le site source est trop lent : réessayez dans un instant.' };
+    throw new CollectorError(`Impossible de lire l'annuaire du site source (${err.message}).`, 502, 'SOURCE_UNREACHABLE');
   }
-  const sources = matchCategories(categories, keyword, config.collector.maxCategories).map((cat) => ({
+  if (!isIndexComplete(c.code)) log(onProgress, 'Index des catégories encore incomplet : il sera complété aux prochaines recherches.');
+
+  // le chrono de la collecte démarre maintenant
+  const deadline = Date.now() + secondsLimit * 1000;
+  const timeLeft = () => Date.now() < deadline;
+  const fetchPage = (url) => fetchBefore(url, deadline);
+
+  let sources = matchCategories(categories, keyword, config.collector.maxCategories).map((cat) => ({
     label: cat.label,
     url: cat.url,
+    direct: cat.direct,
   }));
+
+  // Rien trouvé et index pas encore complet -> on le complète (dans la limite de temps) et on réessaie
+  if (!sources.length && !isIndexComplete(c.code)) {
+    log(onProgress, "Catégorie pas encore connue : on complète l'index des catégories...");
+    categories = await getCategoryIndex(c.code, { budgetMs: Math.max(0, deadline - Date.now()), onProgress });
+    sources = matchCategories(categories, keyword, config.collector.maxCategories).map((cat) => ({
+      label: cat.label,
+      url: cat.url,
+      direct: cat.direct,
+    }));
+  }
 
   // Option : recherche par nom via l'URL de recherche du site (si configurée)
   if (!sources.length && config.collector.searchUrlTemplate) {
@@ -126,51 +129,69 @@ async function collect({ country, keyword, city = '', maxPages, maxCompanies, ma
   log(onProgress, `Secteur(s) retenu(s) : ${sources.map((s) => s.label).join(', ')}`);
 
   // 2-3. Parcours des pages de liste
-  //  ⚠️ Une page de SECTEUR (ex. "Informatique, internet") ne liste pas d'entreprises,
-  //     seulement des sous-catégories (ex. "Maintenance informatique", "Consultants informatiques").
-  //     Dans ce cas, on ajoute ces sous-catégories à la file d'attente.
+  //  ⚠️ Une page de SECTEUR (ex. "Santé") ne liste pas d'entreprises, seulement des
+  //     sous-catégories (ex. "Médecins ORL", "Cliniques", "Dentistes"...).
+  //     On les ajoute à la file d'attente, puis on MÉLANGE les résultats de toutes les
+  //     catégories (sinon 20 résultats = 20 médecins ORL de la 1re sous-catégorie).
   const seen = new Set();
-  const candidates = [];
   const queue = [...sources];
   const visitedSources = new Set(queue.map((s) => s.url));
+  const perSource = []; // [{ source, links: [], nextPage, hasMore }]
   let addedSubcategories = 0;
 
-  outer: while (queue.length) {
-    const source = queue.shift();
-    for (let page = 1; page <= pagesLimit; page++) {
-      const separator = source.url.includes('?') ? '&' : '?';
-      const pageUrl = page === 1 ? source.url : `${source.url}${separator}p=${page}`;
-      if (!timeLeft()) {
-        partial = true;
-        log(onProgress, 'Limite de temps atteinte : on garde les résultats trouvés.');
-        break outer;
-      }
-      log(onProgress, `Lecture de la liste : ${pageUrl}`);
+  const readPage = async (entry, page) => {
+    const separator = entry.source.url.includes('?') ? '&' : '?';
+    const pageUrl = page === 1 ? entry.source.url : `${entry.source.url}${separator}p=${page}`;
+    log(onProgress, `Lecture de la liste : ${pageUrl}`);
+    let html;
+    try {
+      html = await fetchPage(pageUrl);
+    } catch (err) {
+      if (err.code === 'NOT_FOUND') return { html: null, links: [] }; // plus de pages
+      throw err;
+    }
+    return { html, links: parseListing(html, c.code, baseUrl, countryNames) };
+  };
 
-      let html;
-      try {
-        html = await fetchPage(pageUrl);
-      } catch (err) {
-        if (err.code === 'NOT_FOUND') break; // plus de pages
-        if (err.code === TIME_UP) {
-          partial = true;
-          log(onProgress, 'Limite de temps atteinte : on garde les résultats trouvés.');
-          break outer;
-        }
-        if (candidates.length) {
-          // une page en erreur ne doit pas faire perdre les entreprises déjà trouvées
-          partial = true;
-          break outer;
-        }
-        throw err;
-      }
-      const links = parseListing(html, c.code, baseUrl, countryNames);
+  const addLinks = (entry, links) => {
+    let newLinks = 0;
+    for (const link of links) {
+      if (seen.has(link.id)) continue;
+      seen.add(link.id);
+      newLinks++;
+      // la ville apparaît dans l'adresse de la fiche : ...-dakar-senegal (mot entier)
+      if (!slugHasCity(link.slug, citySlug)) continue;
+      entry.links.push({ ...link, sector: entry.source.label });
+    }
+    return newLinks;
+  };
 
-      // Page de secteur sans entreprises -> on descend dans ses sous-catégories
-      if (page === 1 && links.length === 0) {
-        const subcategories = parseCategories(html, c.code, baseUrl).filter((s) => !visitedSources.has(s.url));
+  const total = () => perSource.reduce((n, e) => n + e.links.length, 0);
+
+  try {
+    // Phase A : 1re page de chaque catégorie (et descente dans les secteurs)
+    while (queue.length) {
+      if (!timeLeft()) throw new CollectorError('Limite de temps atteinte.', 504, TIME_UP);
+      // assez de résultats venant de plusieurs catégories : inutile d'en ouvrir d'autres
+      if (total() >= companiesLimit * 2 && perSource.length >= 4) break;
+
+      const source = queue.shift();
+      const entry = { source, links: [], nextPage: 2, hasMore: false };
+      const { html, links } = await readPage(entry, 1);
+      if (!html) continue;
+
+      if (links.length === 0) {
+        // page de secteur -> sous-catégories liées au mot-clé
+        const allSub = parseCategories(html, c.code, baseUrl);
+        rememberCategories(c.code, allSub);
+        const subcategories = allSub.filter((x) => !visitedSources.has(x.url));
         const relevant = matchCategories(subcategories, keyword, subcategories.length);
-        const chosen = (relevant.length ? relevant : subcategories).slice(
+        // Le secteur correspond directement au mot-clé ("santé" -> secteur "Santé") :
+        // toutes ses sous-catégories sont utiles (médecins, cliniques, dentistes...), les plus proches d'abord.
+        // Sinon (secteur trouvé via un synonyme) : seulement les sous-catégories liées au mot-clé.
+        const others = subcategories.filter((x) => !relevant.some((r) => r.slug === x.slug));
+        const pool = source.direct || !relevant.length ? [...relevant, ...others] : relevant;
+        const chosen = pool.slice(
           0,
           Math.max(0, subcategoriesLimit - addedSubcategories)
         );
@@ -180,23 +201,47 @@ async function collect({ country, keyword, city = '', maxPages, maxCompanies, ma
         }
         addedSubcategories += chosen.length;
         if (chosen.length) {
-          log(onProgress, `« ${source.label} » est un secteur : ${chosen.length} sous-catégorie(s) ajoutée(s) (${chosen.map((s) => s.label).join(', ')})`);
+          log(onProgress, `« ${source.label} » est un secteur : ${chosen.length} sous-catégorie(s) ajoutée(s) (${chosen.map((x) => x.label).join(', ')})`);
         }
-        break;
+        continue;
       }
 
-      let newLinks = 0;
-      for (const link of links) {
-        if (seen.has(link.id)) continue;
-        seen.add(link.id);
-        newLinks++;
-        // la ville apparaît dans l'adresse de la fiche : ...-dakar-senegal (mot entier)
-        if (!slugHasCity(link.slug, citySlug)) continue;
-        candidates.push({ ...link, sector: source.label });
-        if (candidates.length >= companiesLimit) break outer;
-      }
-      if (newLinks === 0) break; // page vide ou identique : fin de la liste
+      entry.hasMore = addLinks(entry, links) > 0 && pagesLimit > 1;
+      perSource.push(entry);
     }
+
+    // Phase B : pas assez de résultats -> pages suivantes, une catégorie après l'autre
+    while (total() < companiesLimit && perSource.some((e) => e.hasMore)) {
+      for (const entry of perSource) {
+        if (!entry.hasMore || total() >= companiesLimit) continue;
+        if (!timeLeft()) throw new CollectorError('Limite de temps atteinte.', 504, TIME_UP);
+        const { links } = await readPage(entry, entry.nextPage);
+        entry.nextPage++;
+        entry.hasMore = links.length > 0 && addLinks(entry, links) > 0 && entry.nextPage <= pagesLimit;
+      }
+    }
+  } catch (err) {
+    if (err.code === TIME_UP) {
+      partial = true;
+      log(onProgress, 'Limite de temps atteinte : on garde les résultats trouvés.');
+    } else if (total() === 0) {
+      throw err;
+    } else {
+      partial = true; // une page en erreur ne doit pas faire perdre ce qui a été trouvé
+    }
+  }
+
+  // Mélange équilibré : 1 entreprise de chaque catégorie à tour de rôle
+  const candidates = [];
+  for (let i = 0; candidates.length < companiesLimit; i++) {
+    let added = false;
+    for (const entry of perSource) {
+      if (entry.links[i] && candidates.length < companiesLimit) {
+        candidates.push(entry.links[i]);
+        added = true;
+      }
+    }
+    if (!added) break;
   }
   log(onProgress, `${candidates.length} entreprise(s) repérée(s).`);
 
@@ -269,4 +314,4 @@ async function collect({ country, keyword, city = '', maxPages, maxCompanies, ma
   };
 }
 
-module.exports = { collect, getCategories };
+module.exports = { collect };

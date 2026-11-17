@@ -1,8 +1,13 @@
 import CompanyCard from './CompanyCard.jsx';
 
-export default function ResultsList({ companies }) {
+export default function ResultsList({ companies, emptyMessage }) {
   if (!companies.length) {
-    return <div className="empty-card">Aucune entreprise à afficher pour cette recherche.</div>;
+    return (
+      <div className="empty-card">
+        <strong>Aucune entreprise trouvée.</strong>
+        {emptyMessage && <p className="empty-reason">{emptyMessage}</p>}
+      </div>
+    );
   }
   return (
     <div className="results-list">

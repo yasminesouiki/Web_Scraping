@@ -794,5 +794,9 @@ a {
     right: -18px;
     top: calc(100% + 10px);
   }
+  .empty-reason {
+    margin: 8px 0 0;
+    font-size: 14px;
+  }
 }
 

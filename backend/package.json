@@ -9,6 +9,8 @@
     "dev": "node --watch src/server.js",
     "db:init": "node src/scripts/initDb.js",
     "collect": "node src/collector/cli.js",
+    "seed": "node src/scripts/seed.js",
+    "index": "node src/scripts/buildIndex.js",
     "test": "node --test"
   },
   "dependencies": {

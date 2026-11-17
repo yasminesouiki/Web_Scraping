@@ -16,7 +16,7 @@ import {
 export default function App() {
   const [countries, setCountries] = useState([]);
   const [form, setForm] = useState({
-    country: "tn",
+    country: "",
     city: "",
     keyword: "",
     refresh: false,
@@ -25,6 +25,17 @@ export default function App() {
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
+
+  const [formKey, setFormKey] = useState(0);
+
+  // Retour à l'accueil : on vide tout (secteur, pays, ville, résultats, message)
+  function goHome() {
+    setForm({ country: "", city: "", keyword: "", refresh: false });
+    setResult(null);
+    setError("");
+    setFormKey((k) => k + 1); // réinitialise complètement la barre de recherche
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   const refreshHistory = () =>
     getSearches()
@@ -54,6 +65,13 @@ export default function App() {
 
   // Clic sur un secteur populaire : on remplit la barre et on lance la recherche
   function quickSearch(keyword) {
+    if (!form.country) {
+      // pas encore de pays : on remplit seulement le secteur, sans message
+      setForm((f) => ({ ...f, keyword }));
+      setError("");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     const next = { ...form, keyword };
     setForm(next);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -102,8 +120,9 @@ export default function App() {
 
   return (
     <>
-      <Header onHome={() => setResult(null)} />
+      <Header onHome={goHome} />
       <SearchForm
+        key={formKey}
         countries={countries}
         loading={loading}
         form={form}
@@ -134,11 +153,7 @@ export default function App() {
 
             {result && (
               <>
-                <button
-                  type="button"
-                  className="back-link"
-                  onClick={() => setResult(null)}
-                >
+                <button type="button" className="back-link" onClick={goHome}>
                   ← Retour à l'accueil
                 </button>
                 <div className="results-header">
@@ -157,7 +172,10 @@ export default function App() {
                     </a>
                   )}
                 </div>
-                <ResultsList companies={result.companies} />
+                <ResultsList
+                  companies={result.companies}
+                  emptyMessage={result.message}
+                />
               </>
             )}
           </section>
@@ -170,3 +188,4 @@ export default function App() {
     </>
   );
 }
+

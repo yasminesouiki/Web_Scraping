@@ -76,6 +76,11 @@ export default function SearchForm({
 
   function submit(e) {
     e.preventDefault();
+    if (!form.country) {
+      setFormError("Veuillez choisir un pays.");
+      document.getElementById("country")?.focus();
+      return;
+    }
     if (form.keyword.trim().length < 2) {
       setFormError(
         "Saisissez un secteur ou un nom d'entreprise (2 caractères minimum).",
@@ -156,6 +161,9 @@ export default function SearchForm({
               onChange={update("country")}
               aria-label="Pays"
             >
+              <option value="" disabled>
+                Choisir un pays
+              </option>
               {countries.map((c) => (
                 <option key={c.code} value={c.code}>
                   {c.name}
@@ -182,3 +190,4 @@ export default function SearchForm({
     </section>
   );
 }
+

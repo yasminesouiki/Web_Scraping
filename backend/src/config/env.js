@@ -25,11 +25,13 @@ const config = {
     requestDelayMs: toInt(process.env.REQUEST_DELAY_MS, 500),
     requestTimeoutMs: toInt(process.env.REQUEST_TIMEOUT_MS, 8000),
     maxListingPages: toInt(process.env.MAX_LISTING_PAGES, 3),
-    maxCompanies: toInt(process.env.MAX_COMPANIES, 10),
-    maxCategories: toInt(process.env.MAX_CATEGORIES, 5),
-    maxSubcategories: toInt(process.env.MAX_SUBCATEGORIES, 14),
+    maxCompanies: toInt(process.env.MAX_COMPANIES, 20),
+    maxCategories: toInt(process.env.MAX_CATEGORIES, 6),
+    maxSubcategories: toInt(process.env.MAX_SUBCATEGORIES, 12),
     // Durée maximale d'une collecte (secondes) : au-delà, on renvoie ce qui a été trouvé
     maxCollectSeconds: toInt(process.env.MAX_COLLECT_SECONDS, 10),
+    // 1re recherche d'un pays : temps maximum pour construire l'index des catégories
+    indexBuildSeconds: toInt(process.env.INDEX_BUILD_SECONDS, 25),
     // true = ouvrir chaque fiche pour chercher email et site web (plus lent)
     fetchDetails:
       (process.env.FETCH_DETAILS || "false").toLowerCase() === "true",

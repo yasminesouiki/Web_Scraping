@@ -42,23 +42,25 @@ function toSourcePath(href, baseUrl) {
 
 /**
  * Page "annuaire" d'un pays -> liste des secteurs.
- * Les liens ressemblent à : /sn/annuaire/agences-de-communication
+ * Pays francophones : /sn/annuaire/agences-de-communication
+ * Pays anglophones  : /gh/directory/import-export
  */
 function parseCategories(html, countryCode, baseUrl) {
   const $ = cheerio.load(html);
-  const re = new RegExp(`^/${countryCode}/annuaire/([a-z0-9-]+)$`, 'i');
+  const re = new RegExp(`^/${countryCode}/(annuaire|directory)/([a-z0-9-]+)$`, 'i');
   const bySlug = new Map();
 
   $('a[href]').each((_, a) => {
     const path = toSourcePath($(a).attr('href'), baseUrl);
     const m = path && path.match(re);
     if (!m) return;
-    const slug = m[1].toLowerCase();
+    const section = m[1].toLowerCase();
+    const slug = m[2].toLowerCase();
     const label = cleanText($(a).attr('title') || $(a).text()) || slug.replace(/-/g, ' ');
     const current = bySlug.get(slug);
     // on garde le libellé le plus parlant
     if (!current || (label.length > current.label.length && label.length < 80)) {
-      bySlug.set(slug, { slug, label, url: `${baseUrl}/${countryCode}/annuaire/${slug}` });
+      bySlug.set(slug, { slug, label, url: `${baseUrl}/${countryCode}/${section}/${slug}` });
     }
   });
   return [...bySlug.values()];
