@@ -97,9 +97,9 @@ goafrica-collector/
 |---|---|---|
 | Interface | **React + Vite** | Composants simples, démarrage rapide, rechargement instantané |
 | API | **Node.js + Express** | Léger, même langage (JavaScript) que le frontend |
-| Collecte | **fetch natif + Cheerio** | Les pages du site sont du HTML classique : pas besoin d'un navigateur complet. Cheerio permet de lire le HTML comme avec jQuery. |
+| Collecte | **fetch natif + Cheerio** | Les pages du site sont du HTML classique : pas besoin d'un navigateur complet. Cheerio permet de lire le HTML. |
 | Base de données | **MySQL** | Base relationnelle répandue, contrainte d'unicité utile pour les doublons |
-| Pourquoi pas d'agent IA ? | — | Les données sont déjà structurées : un collecteur classique est plus rapide, gratuit, reproductible et n'invente pas de données. L'IA reste une amélioration possible (voir §8). |
+| Pourquoi pas d'agent IA ? | — | Les données sont déjà structurées : un collecteur classique est plus rapide, gratuit, reproductible et n'invente pas de données. L'IA reste une amélioration possible. |
 
 ---
 
@@ -115,15 +115,20 @@ goafrica-collector/
 
 # 1. Backend
 cd backend
+
 npm install
+
 cp .env.example .env        # sous Windows : copy .env.example .env
 # → ouvrir .env et renseigner DB_USER / DB_PASSWORD
 npm run db:init             # crée la base info_collect et les tables
+
 npm run dev
 
 # 2. Frontend
 cd frontend
+
 npm install
+
 npm run dev
 
 
@@ -152,7 +157,7 @@ On fait la vérification : http://localhost:4000/api/health * Affichage `{"statu
 | GET | `/api/searches` | Historique des recherches |
 | GET | `/api/searches/:id/results` | Résultats d'une recherche |
 | GET | `/api/companies?country=sn&city=dakar&q=info&page=1` | Toutes les entreprises en base |
-| GET | `/api/export.csv?searchId=12` | Export CSV d'une recherche (ou de toute la base avec `country`, `city`, `q`) |
+| GET | `/api/export.csv?searchId=12` | Export CSV d'une recherche |
 
 
 ## 6. Gestion des doublons et des erreurs
@@ -182,7 +187,7 @@ On fait la vérification : http://localhost:4000/api/health * Affichage `{"statu
 - Le collecteur lit et **respecte le fichier robots.txt** du site (`RESPECT_ROBOTS_TXT=true`).
 - **Pause de 1,5 s** entre deux requêtes et nombre de pages limité, pour ne pas surcharger le site.
 - Seules des informations **professionnelles publiques** sont collectées, et **l'URL source** est conservée pour chaque entreprise.
-- Avant tout usage commercial, il faut vérifier les **conditions d'utilisation** du site source et la réglementation sur les données (ex. loi marocaine 09-08, RGPD).
+- Avant tout usage commercial, il faut vérifier les **conditions d'utilisation** du site source et la réglementation sur les données.
 
 ---
 
@@ -190,7 +195,7 @@ On fait la vérification : http://localhost:4000/api/health * Affichage `{"statu
 
 - L'email est rarement affiché publiquement sur le site source : le champ est souvent vide.
 - Le filtre par ville s'appuie sur l'URL et l'adresse des fiches, et peut donc manquer quelques entreprises.
-- La recherche par nom porte sur les données déjà collectées. Pour chercher un nom directement sur le site, renseigner `SEARCH_URL_TEMPLATE` dans `.env` après avoir identifié l'URL de recherche du site (F12 → onglet Réseau).
+- La recherche par nom porte sur les données déjà collectées.
 
 
 ## 9. Dépannage
