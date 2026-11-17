@@ -97,9 +97,9 @@ goafrica-collector/
 |---|---|---|
 | Interface | **React + Vite** | Composants simples, démarrage rapide, rechargement instantané |
 | API | **Node.js + Express** | Léger, même langage (JavaScript) que le frontend |
-| Collecte | **fetch natif + Cheerio** | Les pages du site sont du HTML classique : pas besoin d'un navigateur complet. Cheerio permet de lire le HTML comme avec jQuery. |
+| Collecte | **fetch natif + Cheerio** | Les pages du site sont du HTML classique : pas besoin d'un navigateur complet. Cheerio permet de lire le HTML. |
 | Base de données | **MySQL** | Base relationnelle répandue, contrainte d'unicité utile pour les doublons |
-| Pourquoi pas d'agent IA ? | — | Les données sont déjà structurées : un collecteur classique est plus rapide, gratuit, reproductible et n'invente pas de données. L'IA reste une amélioration possible (voir §8). |
+| Pourquoi pas d'agent IA ? | — | Les données sont déjà structurées : un collecteur classique est plus rapide, gratuit, reproductible et n'invente pas de données. L'IA reste une amélioration possible. |
 
 ---
 
