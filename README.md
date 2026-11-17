@@ -187,7 +187,7 @@ On fait la vérification : http://localhost:4000/api/health * Affichage `{"statu
 - Le collecteur lit et **respecte le fichier robots.txt** du site (`RESPECT_ROBOTS_TXT=true`).
 - **Pause de 1,5 s** entre deux requêtes et nombre de pages limité, pour ne pas surcharger le site.
 - Seules des informations **professionnelles publiques** sont collectées, et **l'URL source** est conservée pour chaque entreprise.
-- Avant tout usage commercial, il faut vérifier les **conditions d'utilisation** du site source et la réglementation sur les données (ex. loi marocaine 09-08, RGPD).
+- Avant tout usage commercial, il faut vérifier les **conditions d'utilisation** du site source et la réglementation sur les données.
 
 ---
 
